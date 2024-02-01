@@ -1,6 +1,6 @@
 {
   "pages": ["pages/index", "pages/about/index"],
   "window": {
-    "defaultTitle": "My App"
+    "defaultTitle": "mini-app"
   }
 }

@@ -1,4 +1,4 @@
-import fs from "node:fs/promises";
+import fs from "node:fs";
 import path from "node:path";
 
 import glob from "fast-glob";
@@ -8,52 +8,58 @@ import esbuild from "esbuild";
 import { exists } from "./utils";
 import { srcDir, distDir } from './const';
 
+// remove dist
+fs.rmdirSync(distDir, { recursive: true });
+
+// build dist
 buildTS();
 buildCopy();
 buildAllCss();
 
-export function buildTS(files?: string[]) {
-  files = files || glob
+export function buildTS(files?: string[]): void {
+  files = files ?? glob
     .sync(`**/*.ts`, {
       cwd: srcDir,
       absolute: true,
     })
   
-  esbuild.build({
+  void esbuild.build({
     entryPoints: files,
     outbase: srcDir,
     outdir: distDir,
   });
 }
 
-export async function buildCopy(files?: string[]) {
-  files = files || glob
+export function buildCopy(files?: string[]): void {
+  files = files ?? glob
     .sync([`**/*`, `!**/*.ts`, `!**/*.acss`], {
       cwd: srcDir,
       absolute: true,
-    })
+    });
 
   for (const file of files) {
     const dist = path.resolve(distDir, path.relative(srcDir, file));
     const dir = path.dirname(dist);
-    if (!(await exists(dir))) {
-      await fs.mkdir(dir, { recursive: true });
+    const hasDist = exists(dir);
+    if (!hasDist) {
+      fs.mkdirSync(dir);
     }
-    await execa("cp", [file, dist]);
+    fs.copyFileSync(file, dist);
   }
 }
 
-export async function buildAllCss(files?: string[]) {
-  files = files || glob.sync(`**/*.acss`, {
-    cwd: srcDir,
-    absolute: true,
-  });
+export function buildAllCss(files?: string[]): void {
+  files = files ?? glob
+    .sync(`**/*.acss`, {
+      cwd: srcDir,
+      absolute: true,
+    });
   for (const file of files) {
     buildCss(file);
   }
 }
 
-export async function buildCss(file: string) {
+export function buildCss(file: string): void {
   execa('tailwindcss', [
     '-i',
     file,

@@ -1,60 +1,53 @@
-import { EventEmitter } from 'node:events';
-import chokidar from "chokidar";
-import glob from "fast-glob";
-import { execa } from "execa";
+import fs, { type WatchEventType } from 'node:fs';
+import path from 'node:path';
 
-import { buildCopy, buildTS, buildCss } from "./build";
-import { srcDir, appCssPath } from './const';
+import { execa } from 'execa';
 
-// Remove listening restrictions
-EventEmitter.defaultMaxListeners = 0;
+import { buildCopy, buildTS, buildCss } from './build';
+import { srcDir, distDir, appCssPath } from './const';
 
 // build first
-execa("npm", ["run", "build"], { cwd: '..' }).stdout?.pipe(process.stdout);
+execa('npm', ['run', 'build'], { cwd: '..' }).stdout?.pipe(process.stdout);
 
-// watch ts
-const onTsChange = (path: string) => {
-  buildTS([path]);
-};
-chokidar
-  .watch(
-    glob.sync([`**/*.ts`], {
-      cwd: srcDir,
-      absolute: true,
-    }),
-  )
-  .on('add', onTsChange)
-  .on('change', onTsChange);
-
-// watch xml for css
-const onCssChange = (path: string) => {
-  if (path.endsWith('.axml')) {
+const onFileChange = (fullFilePath: string): void => {
+  // ts
+  if (fullFilePath.endsWith('.ts')) {
+    buildTS([fullFilePath]);
+    return;
+  }
+  // css
+  if (fullFilePath.endsWith('.axml')) {
+    buildCopy([fullFilePath]);
     buildCss(appCssPath);
+    return;
   }
-  if (path.endsWith('.acss')) {
-    buildCss(path);
+  if (fullFilePath.endsWith('.acss')) {
+    buildCss(fullFilePath);
+    return;
   }
-};
-chokidar
-  .watch(
-    glob.sync([`**/*.axml`, `**/*.acss`], {
-      cwd: srcDir,
-      absolute: true,
-    })
-)
-  .on("add", onCssChange)
-  .on("change", onCssChange);
+  // others
+  buildCopy([fullFilePath]);
+}
 
-// watch files for copy
-const onFileChange = (path: string) => {
-  buildCopy([path]);
+const watchHandler = (eventType: WatchEventType, filePath: string): void => {
+  const fullFilePath = path.resolve(srcDir, filePath);
+
+  if (eventType === 'rename') {
+    // 添加
+    if (fs.existsSync(fullFilePath)) {
+      onFileChange(fullFilePath);
+    }
+    // 删除
+    else {
+      // 删除dist中对应文件
+      const dist = path.resolve(distDir, path.relative(srcDir, fullFilePath));
+      fs.unlinkSync(dist);
+    }
+  }
+
+  if (eventType === 'change') {
+    onFileChange(fullFilePath);
+  }
 };
-chokidar
-  .watch(
-    glob.sync([`**/*`, `!**/*.ts`, `!**/*.acss`], {
-      cwd: srcDir,
-      absolute: true,
-    }),
-  )
-  .on('add', onFileChange)
-  .on('change', onFileChange);
+
+fs.watch(srcDir, { recursive: true }, watchHandler);

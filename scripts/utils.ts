@@ -1,13 +1,13 @@
-import fs from 'node:fs/promises'
+import fs from 'node:fs'
 
 /**
  * Check if the file exists.
  */
-export async function exists(path: string): Promise<boolean> {
+export function exists(path: string): boolean {
   try {
-    await fs.access(path)
+    fs.accessSync(path);
   } catch {
-    return false
+    return false;
   }
-  return true
+  return true;
 }
